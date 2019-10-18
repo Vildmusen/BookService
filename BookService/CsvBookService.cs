@@ -91,5 +91,10 @@ namespace BookService
         {
             return books.Where(expression).Select(b =>b);
         }
+
+        public Book BookByTitle(string title)
+        {
+            return books.Where(b => b.Title == title).FirstOrDefault();
+        }
     }
 }

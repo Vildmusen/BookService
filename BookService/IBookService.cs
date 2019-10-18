@@ -10,6 +10,7 @@ namespace BookService
     {
         IEnumerable<Book> AllBooks();
         IEnumerable<Author> AllAuthors();
+        Book BookByTitle(string title);
         IEnumerable<Book> BooksByAuthor(string name);
         IEnumerable<Book> BooksByYear(int year);
         IEnumerable<Book> BooksBetweenYears(int yearA, int yearB);
