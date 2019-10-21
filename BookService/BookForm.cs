@@ -7,6 +7,7 @@ namespace BookService
     public partial class BookForm : Form
     {
         private IBookService service;
+        private long lastSearch;
 
         public BookForm()
         {
@@ -26,7 +27,6 @@ namespace BookService
 
         private void Reset()
         {
-            UpdateBooksList(service.AllBooks());
             UpdateAuthorsList();
             author_name_input.Text = "";
             publication_year_input.Text = "";
@@ -35,6 +35,12 @@ namespace BookService
             between_years_high_input.Text = "";
             rating_threshold_low_input.Text = "";
             rating_threshold_high_input.Text = "";
+            book_listbox.Items.Clear();
+            books_lstbox.ClearSelected();
+            authors_lstbox.ClearSelected();
+            search_tab_ctrl.SelectedTab = search_basic_tab;
+            save_query_chk.Checked = false;
+            Search();
         }
 
         private void UpdateBooksList<T>(IEnumerable<T> source)
@@ -63,31 +69,44 @@ namespace BookService
 
         private void filter_btn_Click(object sender, EventArgs e)
         {
+            Search();
+        }
+
+        private void UpdateSearchResultText(int count)
+        {
+            double searchtime = (double)(lastSearch) / 1000;
+            string resultText = count == 1 ? "Result" : "Results";
+            search_result_lbl.Text = String.Format("(Found {0} {1} in {2} seconds.)", count, resultText, searchtime);
+        }
+
+        private void Search()
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             IEnumerable<Book> books = service.AllBooks(); // All books
             if (!String.IsNullOrEmpty(author_name_input.Text)) // If "Author" field is filled in
             {
                 books = service.BooksByAuthor(books, author_name_input.Text);
             }
-            if (!String.IsNullOrEmpty(publication_year_input.Text)) // If "Publication Year" field is filled in 
+            if (!String.IsNullOrEmpty(publication_year_input.Text) && books != null) // If "Publication Year" field is filled in 
             {
                 Int32.TryParse(publication_year_input.Text, out int year);
                 books = service.BooksByYear(books, year);
             }
-            if (!(String.IsNullOrEmpty(between_years_low_input.Text) && String.IsNullOrEmpty(between_years_high_input.Text))) // if both lower bound publication year and higher bound publication year is filled in.
+            if (!(String.IsNullOrEmpty(between_years_low_input.Text) && String.IsNullOrEmpty(between_years_high_input.Text)) && books != null) // if both lower bound publication year and higher bound publication year is filled in.
             {
                 Int32.TryParse(between_years_low_input.Text, out int yearLow);
                 Int32.TryParse(between_years_high_input.Text, out int yearHigh);
                 books = service.BooksBetweenYears(books, yearLow, yearHigh);
             }
-            if (!(String.IsNullOrEmpty(rating_threshold_low_input.Text) && String.IsNullOrEmpty(rating_threshold_high_input.Text))) // if both lower bound rating and higher bound rating fields are filled in.
+            if (!(String.IsNullOrEmpty(rating_threshold_low_input.Text) && String.IsNullOrEmpty(rating_threshold_high_input.Text)) && books != null) // if both lower bound rating and higher bound rating fields are filled in.
             {
-                if(Double.TryParse(rating_threshold_low_input.Text, out double ratingLow) &&
+                if (Double.TryParse(rating_threshold_low_input.Text, out double ratingLow) &&
                     Double.TryParse(rating_threshold_high_input.Text, out double ratingHigh))
                 {
                     books = service.BooksBetweenRating(books, ratingLow, ratingHigh);
                 }
             }
-            if (!String.IsNullOrEmpty(property_value_input.Text))
+            if (!String.IsNullOrEmpty(property_value_input.Text) && books != null)
             {
                 switch (property_combo_box.SelectedItem.ToString())
                 {
@@ -102,11 +121,14 @@ namespace BookService
                         break;
                 }
             }
-            if(save_query_chk.Checked)
+            if (save_query_chk.Checked && books != null)
             {
                 WriteToFile<Book>.WriteToTextFile(books);
             }
             UpdateBooksList(books);
+            watch.Stop();
+            lastSearch = watch.ElapsedMilliseconds;
+            UpdateSearchResultText(books_lstbox.Items.Count);
         }
 
         private IEnumerable<Book> handleNumberOfRatings(IEnumerable<Book> books)
@@ -183,9 +205,8 @@ namespace BookService
 
         private void authors_lstbox_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string name = authors_lstbox.SelectedItem.ToString();
-            author_name_input.Text = name;
-            UpdateBooksList(service.BooksByAuthor(name));
+            author_name_input.Text = authors_lstbox.SelectedItem.ToString();
+            filter_btn_Click(sender, e);
         }
 
         private void publication_year_input_TextChanged(object sender, EventArgs e)
@@ -222,6 +243,25 @@ namespace BookService
             {
                 publication_year_input.Text = "";
                 publication_year_input.ReadOnly = true;
+            }
+        }
+
+        private void books_lstbox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if(books_lstbox.SelectedItem != null)
+            {
+                string[] bookListInfo = books_lstbox.SelectedItem.ToString().Split(',');
+                Book selected = service.BookByTitle(bookListInfo[0]);
+                book_listbox.Items.Clear();
+                book_listbox.Items.Add(selected.Title);
+                string authors = "";
+                foreach(Author a in selected.Authors)
+                {
+                    authors += a.ToString() + ", ";
+                }
+                book_listbox.Items.Add(authors);
+                book_listbox.Items.Add("Published: " + selected.YearOfPublication);
+                book_listbox.Items.Add("Rated: " + selected.Rating);
             }
         }
     }

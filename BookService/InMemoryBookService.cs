@@ -128,5 +128,10 @@ namespace BookService
         {
             throw new NotImplementedException();
         }
+
+        public Book BookByTitle(string title)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
